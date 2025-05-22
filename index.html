@@ -6,7 +6,8 @@
   <title>Pomodoro & Focus App</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@^3/dist/tailwind.min.css" rel="stylesheet"/>
 </head>
-<body class="flex flex-col items-center justify-center h-screen bg-gray-100 transition-colors duration-500">
+<body class="relative flex flex-col items-center justify-center h-screen bg-gray-100 transition-colors duration-500">
+  <canvas id="starfield" class="fixed top-0 left-0 w-full h-full -z-10"></canvas>
   <div id="app" class="text-center">
     <h1 class="text-4xl font-bold mb-4">🍅 Pomodoro Timer</h1>
     <div id="timer" class="text-6xl font-mono mb-6">25:00</div>
@@ -26,6 +27,14 @@
       <label class="mr-2">White Noise:</label>
       <input id="noiseToggle" type="checkbox" class="mr-2"/>
       <input id="noiseVolume" type="range" min="0" max="1" step="0.01" value="0.5"/>
+    </div>
+    <div class="mb-4">
+      <label class="mr-2">Ambient:</label>
+      <button id="rainBtn" class="px-3 py-1 bg-blue-600 text-white rounded mr-2">Rain</button>
+      <button id="spaceBtn" class="px-3 py-1 bg-purple-600 text-white rounded mr-2">Space</button>
+      <button id="sleepyBtn" class="px-3 py-1 bg-indigo-600 text-white rounded mr-2">Sleepy</button>
+      <button id="deepBtn" class="px-3 py-1 bg-gray-800 text-white rounded mr-2">Deep Sleep</button>
+      <button id="gammaBtn" class="px-3 py-1 bg-green-700 text-white rounded">Gamma Waves</button>
     </div>
     <div id="tip" class="mt-6 text-lg italic text-gray-700">Tip: Stay focused!</div>
   </div>
@@ -54,6 +63,18 @@
         'Set clear goals before starting a session.',
         'Keep your workspace tidy.'
       ];
+      // Ambient audio
+      var audioRain = new Audio('assets/rain.mp3');
+      audioRain.loop = true;
+      var audioSpace = new Audio('assets/space.mp3');
+      audioSpace.loop = true;
+      var audioSleepy = new Audio('assets/sleepy.mp3');
+      audioSleepy.loop = true;
+      var audioDeep = new Audio('assets/deep_sleep.mp3');
+      audioDeep.loop = true;
+      var audioGamma = new Audio('assets/gamma.wav');
+      audioGamma.loop = true;
+      var currentAmbient = null;
       function loadSettings() {
         var w = localStorage.getItem('workDuration');
         var b = localStorage.getItem('breakDuration');
@@ -159,6 +180,54 @@
         var idx = Math.floor(Math.random() * tips.length);
         tipEl.textContent = 'Tip: ' + tips[idx];
       }
+      function toggleAmbient(newAudio) {
+        if (currentAmbient && currentAmbient !== newAudio) {
+          currentAmbient.pause();
+        }
+        if (currentAmbient === newAudio && !newAudio.paused) {
+          newAudio.pause();
+          currentAmbient = null;
+        } else {
+          newAudio.play();
+          currentAmbient = newAudio;
+        }
+      }
+      // Starfield animation
+      function initStarfield() {
+        var canvas = document.getElementById('starfield');
+        var ctx = canvas.getContext('2d');
+        var stars = [];
+        var numStars = 100;
+        function resize() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+        for (var i = 0; i < numStars; i++) {
+          stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, z: Math.random() * canvas.width });
+        }
+        function draw() {
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#fff';
+          stars.forEach(function(star) {
+            star.z -= 2;
+            if (star.z <= 0) {
+              star.z = canvas.width;
+              star.x = Math.random() * canvas.width;
+              star.y = Math.random() * canvas.height;
+            }
+            var k = 128 / star.z;
+            var x = star.x * k + canvas.width / 2;
+            var y = star.y * k + canvas.height / 2;
+            var size = (1 - star.z / canvas.width) * 3;
+            ctx.fillRect(x, y, size, size);
+          });
+          requestAnimationFrame(draw);
+        }
+        draw();
+      }
       // Event listeners
       startBtn.addEventListener('click', startTimer);
       pauseBtn.addEventListener('click', pauseTimer);
@@ -166,7 +235,14 @@
       saveSettingsBtn.addEventListener('click', saveSettings);
       noiseToggle.addEventListener('change', function() { localStorage.setItem('noiseOn', noiseToggle.checked); handleNoise(); });
       noiseVolumeSlider.addEventListener('input', updateNoiseVolume);
+      // Ambient event listeners
+      document.getElementById('rainBtn').addEventListener('click', function() { toggleAmbient(audioRain); });
+      document.getElementById('spaceBtn').addEventListener('click', function() { toggleAmbient(audioSpace); });
+      document.getElementById('sleepyBtn').addEventListener('click', function() { toggleAmbient(audioSleepy); });
+      document.getElementById('deepBtn').addEventListener('click', function() { toggleAmbient(audioDeep); });
+      document.getElementById('gammaBtn').addEventListener('click', function() { toggleAmbient(audioGamma); });
       // Initialize
+      initStarfield();
       loadSettings();
       showTip();
     });
