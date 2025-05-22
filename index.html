@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pomodoro & Focus App</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@^3/dist/tailwind.min.css" rel="stylesheet"/>
+</head>
+<body class="flex flex-col items-center justify-center h-screen bg-gray-100 transition-colors duration-500">
+  <div id="app" class="text-center">
+    <h1 class="text-4xl font-bold mb-4">🍅 Pomodoro Timer</h1>
+    <div id="timer" class="text-6xl font-mono mb-6">25:00</div>
+    <div class="flex space-x-4 mb-6">
+      <button id="startBtn" class="px-4 py-2 bg-green-500 text-white rounded">Start</button>
+      <button id="pauseBtn" class="px-4 py-2 bg-yellow-500 text-white rounded">Pause</button>
+      <button id="resetBtn" class="px-4 py-2 bg-red-500 text-white rounded">Reset</button>
+    </div>
+    <div class="mb-4">
+      <label class="mr-2">Work (min):</label>
+      <input id="workInput" type="number" min="1" max="60" value="25" class="w-16 p-1 border rounded"/>
+      <label class="ml-4 mr-2">Break (min):</label>
+      <input id="breakInput" type="number" min="1" max="30" value="5" class="w-16 p-1 border rounded"/>
+      <button id="saveSettings" class="ml-4 px-3 py-1 bg-blue-500 text-white rounded">Save</button>
+    </div>
+    <div class="mb-4">
+      <label class="mr-2">White Noise:</label>
+      <input id="noiseToggle" type="checkbox" class="mr-2"/>
+      <input id="noiseVolume" type="range" min="0" max="1" step="0.01" value="0.5"/>
+    </div>
+    <div id="tip" class="mt-6 text-lg italic text-gray-700">Tip: Stay focused!</div>
+  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var timerEl = document.getElementById('timer');
+      var startBtn = document.getElementById('startBtn');
+      var pauseBtn = document.getElementById('pauseBtn');
+      var resetBtn = document.getElementById('resetBtn');
+      var workInput = document.getElementById('workInput');
+      var breakInput = document.getElementById('breakInput');
+      var saveSettingsBtn = document.getElementById('saveSettings');
+      var noiseToggle = document.getElementById('noiseToggle');
+      var noiseVolumeSlider = document.getElementById('noiseVolume');
+      var tipEl = document.getElementById('tip');
+      var workDuration, breakDuration, timeLeft, timerInterval = null, isWork = true;
+      var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var noiseNode, noiseGain;
+      var noiseVolume = parseFloat(localStorage.getItem('noiseVolume')) || 0.5;
+      var tips = [
+        'Take a short walk during breaks.',
+        'Drink water regularly.',
+        'Stand up and stretch.',
+        'Do a quick breathing exercise.',
+        'Avoid checking messages during focus time.',
+        'Set clear goals before starting a session.',
+        'Keep your workspace tidy.'
+      ];
+      function loadSettings() {
+        var w = localStorage.getItem('workDuration');
+        var b = localStorage.getItem('breakDuration');
+        var nOn = localStorage.getItem('noiseOn') === 'true';
+        if (w) workInput.value = w;
+        if (b) breakInput.value = b;
+        noiseToggle.checked = nOn;
+        noiseVolumeSlider.value = noiseVolume;
+        workDuration = parseInt(workInput.value, 10) * 60;
+        breakDuration = parseInt(breakInput.value, 10) * 60;
+        timeLeft = isWork ? workDuration : breakDuration;
+        updateTimerDisplay();
+      }
+      function saveSettings() {
+        localStorage.setItem('workDuration', workInput.value);
+        localStorage.setItem('breakDuration', breakInput.value);
+        showTip();
+      }
+      function updateTimerDisplay() {
+        var m = Math.floor(timeLeft / 60);
+        var s = timeLeft % 60;
+        timerEl.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+      }
+      function switchMode() {
+        isWork = !isWork;
+        timeLeft = isWork ? workDuration : breakDuration;
+        document.body.className = 'flex flex-col items-center justify-center h-screen ' + (isWork ? 'bg-red-100' : 'bg-green-100') + ' transition-colors duration-500';
+      }
+      function startTimer() {
+        if (timerInterval) return;
+        timerInterval = setInterval(function() {
+          timeLeft--;
+          updateTimerDisplay();
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            playBell();
+            switchMode();
+            showTip();
+            startTimer();
+          }
+        }, 1000);
+        handleNoise();
+      }
+      function pauseTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        stopNoise();
+      }
+      function resetTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        isWork = true;
+        workDuration = parseInt(workInput.value, 10) * 60;
+        breakDuration = parseInt(breakInput.value, 10) * 60;
+        timeLeft = workDuration;
+        updateTimerDisplay();
+        stopNoise();
+        document.body.className = 'flex flex-col items-center justify-center h-screen bg-gray-100 transition-colors duration-500';
+      }
+      function playBell() {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+        gain.gain.setValueAtTime(1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1);
+      }
+      function startNoise() {
+        if (!noiseToggle.checked || noiseNode) return;
+        var bufferSize = 2 * audioCtx.sampleRate;
+        var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        var data = buffer.getChannelData(0);
+        for (var i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        noiseNode = audioCtx.createBufferSource();
+        noiseNode.buffer = buffer;
+        noiseNode.loop = true;
+        noiseGain = audioCtx.createGain();
+        noiseGain.gain.value = noiseVolume;
+        noiseNode.connect(noiseGain).connect(audioCtx.destination);
+        noiseNode.start();
+      }
+      function stopNoise() {
+        if (noiseNode) {
+          noiseNode.stop();
+          noiseNode.disconnect();
+          noiseNode = null;
+        }
+      }
+      function handleNoise() {
+        if (noiseToggle.checked) startNoise();
+        else stopNoise();
+      }
+      function updateNoiseVolume() {
+        noiseVolume = parseFloat(noiseVolumeSlider.value);
+        if (noiseGain) noiseGain.gain.value = noiseVolume;
+        localStorage.setItem('noiseVolume', noiseVolume);
+      }
+      function showTip() {
+        var idx = Math.floor(Math.random() * tips.length);
+        tipEl.textContent = 'Tip: ' + tips[idx];
+      }
+      // Event listeners
+      startBtn.addEventListener('click', startTimer);
+      pauseBtn.addEventListener('click', pauseTimer);
+      resetBtn.addEventListener('click', resetTimer);
+      saveSettingsBtn.addEventListener('click', saveSettings);
+      noiseToggle.addEventListener('change', function() { localStorage.setItem('noiseOn', noiseToggle.checked); handleNoise(); });
+      noiseVolumeSlider.addEventListener('input', updateNoiseVolume);
+      // Initialize
+      loadSettings();
+      showTip();
+    });
+  </script>
+</body>
+</html> 
