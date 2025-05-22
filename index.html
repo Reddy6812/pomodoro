@@ -181,6 +181,9 @@
         tipEl.textContent = 'Tip: ' + tips[idx];
       }
       function toggleAmbient(newAudio) {
+        // stop white noise when playing ambient audio
+        noiseToggle.checked = false;
+        stopNoise();
         if (currentAmbient && currentAmbient !== newAudio) {
           currentAmbient.pause();
         }
